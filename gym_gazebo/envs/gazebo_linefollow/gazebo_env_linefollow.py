@@ -52,10 +52,11 @@ class Gazebo_Linefollow_Env(gazebo_env.GazeboEnv):
         self.HARD_TURN_REWARD = 1
         self.PENALTY = -200
 
-    def process_image(self, data):
+    def process_image(self, data, action=None):
         '''
             @brief Coverts data into a opencv image and displays it
             @param data : Image data from ROS
+            @param action : The action taken in the previous timestep
 
             @returns (state, done)
         '''
@@ -120,6 +121,15 @@ class Gazebo_Linefollow_Env(gazebo_env.GazeboEnv):
             text_y = y_start - 20 # 20 pixels above the slice
             
             cv2.putText(bgr8_image, text, (text_x, text_y), font, font_scale, color, thickness)
+
+            if action is not None:
+                # Map the numbers to human-readable strings
+                action_names = {0: "FORWARD", 1: "LEFT", 2: "RIGHT", 3: "HARD LEFT", 4: "HARD RIGHT"}
+                command_text = action_names.get(action, "UNKNOWN")
+                
+                # Pick a color (Yellow for visibility)
+                cv2.putText(bgr8_image, f"CMD: {command_text}", (x_center, text_y + 30), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 255, 255), 3)
 
         # Draw the Centroid (Red Dot) for comparison
         if current_x is not None:
@@ -233,7 +243,7 @@ class Gazebo_Linefollow_Env(gazebo_env.GazeboEnv):
         except (rospy.ServiceException) as e:
             print ("/gazebo/pause_physics service call failed")
 
-        state, done = self.process_image(data)
+        state, done = self.process_image(data, action)
 
         # Set the rewards for your action
         if not done:

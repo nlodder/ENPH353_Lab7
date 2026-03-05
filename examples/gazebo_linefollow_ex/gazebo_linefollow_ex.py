@@ -42,7 +42,7 @@ if __name__ == '__main__':
 
     initial_epsilon = qlearn.epsilon
 
-    epsilon_discount = 0.9986
+    epsilon_discount = 0.999
 
     start_time = time.time()
     total_episodes = 20000
