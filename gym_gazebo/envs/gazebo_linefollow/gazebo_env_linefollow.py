@@ -30,8 +30,8 @@ class Gazebo_Linefollow_Env(gazebo_env.GazeboEnv):
         self.reset_proxy = rospy.ServiceProxy('/gazebo/reset_world',
                                               Empty)
 
-        # action space is discrete with 3 actions, FORWARD, LEFT, RIGHT
-        self.action_space = spaces.Discrete(3)
+        # action space is discrete with 5 actions, FORWARD, HARD_LEFT, HARD_RIGHT, LEFT, RIGHT
+        self.action_space = spaces.Discrete(5)
         self.reward_range = (-np.inf, np.inf)
         self.episode_history = []
 
@@ -45,9 +45,11 @@ class Gazebo_Linefollow_Env(gazebo_env.GazeboEnv):
         self.DARKNESS_THRESHOLD = 20
         self.FORWARD_SPEED = 0.4 # m/s
         self.TURN_SPEED = 0.6 # rad/s
+        self.HARD_TURN_SPEED = 1.2 # rad/s
 
-        self.FORWARD_REWARD = 4
-        self.TURN_REWARD = 4
+        self.FORWARD_REWARD = 5
+        self.TURN_REWARD = 3
+        self.HARD_TURN_REWARD = 1
         self.PENALTY = -200
 
     def process_image(self, data):
@@ -62,7 +64,6 @@ class Gazebo_Linefollow_Env(gazebo_env.GazeboEnv):
         except CvBridgeError as e:
             print(e)
 
-        cv2.imshow("raw", bgr8_image)
 
         NUM_BINS = 3
         state = [0, 0, 0]
@@ -79,6 +80,10 @@ class Gazebo_Linefollow_Env(gazebo_env.GazeboEnv):
         # get line mask
         mask = self.get_line_mask(hsv_roi, avg_v)
         
+        cv2.imshow("Raw Image", bgr8_image)
+        cv2.imshow("Line Mask", mask)
+        cv2.waitKey(1)
+
         # update state
         current_x = self.find_cent_x_from_mask(mask)
         if current_x is not None:
@@ -167,11 +172,17 @@ class Gazebo_Linefollow_Env(gazebo_env.GazeboEnv):
             vel_cmd.linear.x = self.FORWARD_SPEED
             vel_cmd.angular.z = 0.0
         elif action == 1:  # LEFT
-            vel_cmd.linear.x = 0.0
+            vel_cmd.linear.x = 0.25 * self.FORWARD_SPEED
             vel_cmd.angular.z = self.TURN_SPEED
         elif action == 2:  # RIGHT
-            vel_cmd.linear.x = 0.0
+            vel_cmd.linear.x = 0.25 * self.FORWARD_SPEED
             vel_cmd.angular.z = -self.TURN_SPEED
+        elif action == 3:  # HARD LEFT
+            vel_cmd.linear.x = 0.0
+            vel_cmd.angular.z = self.HARD_TURN_SPEED
+        elif action == 4:  # HARD RIGHT
+            vel_cmd.linear.x = 0.0
+            vel_cmd.angular.z = -self.HARD_TURN_SPEED
 
         self.vel_pub.publish(vel_cmd)
 
@@ -196,10 +207,10 @@ class Gazebo_Linefollow_Env(gazebo_env.GazeboEnv):
         if not done:
             if action == 0:  # FORWARD
                 reward = self.FORWARD_REWARD
-            elif action == 1:  # LEFT
+            elif action == 1 or action == 2:  # LEFT or RIGHT
                 reward = self.TURN_REWARD
-            else:
-                reward = self.TURN_REWARD  # RIGHT
+            else:  # HARD LEFT or HARD RIGHT
+                reward = self.HARD_TURN_REWARD
         else:
             reward = self.PENALTY
 
