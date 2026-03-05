@@ -1,4 +1,3 @@
-
 import cv2
 import gym
 import math
@@ -31,7 +30,8 @@ class Gazebo_Linefollow_Env(gazebo_env.GazeboEnv):
         self.reset_proxy = rospy.ServiceProxy('/gazebo/reset_world',
                                               Empty)
 
-        self.action_space = spaces.Discrete(3)  # F,L,R
+        # action space is discrete with 3 actions, FORWARD, LEFT, RIGHT
+        self.action_space = spaces.Discrete(3)
         self.reward_range = (-np.inf, np.inf)
         self.episode_history = []
 
@@ -39,17 +39,26 @@ class Gazebo_Linefollow_Env(gazebo_env.GazeboEnv):
 
         self.bridge = CvBridge()
         self.timeout = 0  # Used to keep track of images with no line detected
+        
+        self.last_x = None  # persistent state between callbacks where local variables die
+        self.SLICE_HEIGHT = 40
+        self.DARKNESS_THRESHOLD = 20
+        self.FORWARD_SPEED = 0.4 # m/s
+        self.TURN_SPEED = 0.5 # rad/s
 
+        self.FORWARD_REWARD = 4
+        self.TURN_REWARD = 2
+        self.PENALTY = -200
 
     def process_image(self, data):
         '''
             @brief Coverts data into a opencv image and displays it
             @param data : Image data from ROS
 
-            @retval (state, done)
+            @returns (state, done)
         '''
         try:
-            cv_image = self.bridge.imgmsg_to_cv2(data, "bgr8")
+            bgr8_image = self.bridge.imgmsg_to_cv2(data, "bgr8")
         except CvBridgeError as e:
             print(e)
 
@@ -59,23 +68,85 @@ class Gazebo_Linefollow_Env(gazebo_env.GazeboEnv):
         state = [0, 0, 0]
         done = False
 
-        # TODO: Analyze the cv_image and compute the state array and
-        # episode termination condition.
-        #
-        # The state array is a list of 3 elements indicating where in the
-        # image the line is:
-        # i.e.
-        #    [1, 0, 0] indicates line is on the left
-        #    [0, 1, 0] indicates line is in the center
-        #
-        # The episode termination condition should be triggered when the line
-        # is not detected for more than 1 frame. In this case set the done
-        # variable to True.
-        #
-        # You can use the self.timeout variable to keep track of which frames
-        # have no line detected.
+        # extract region of interest (roi)
+        cap_height, cap_width, _ = bgr8_image.shape
+        if self.last_x is None: # if line never seen
+            self.last_x = cap_width // 2
+        y_start = cap_height - self.SLICE_HEIGHT
+        roi = bgr8_image[y_start:cap_height, :]
+        hsv_roi, avg_v = self.preprocess_slice(roi)
+        
+        # get line mask
+        mask = self.get_line_mask(hsv_roi, avg_v)
+        
+        # update state
+        current_x = self.find_cent_x_from_mask(mask)
+        if current_x is not None:
+            self.last_x = current_x
+        else: # if line not detected, increment timeout
+            self.timeout += 1
+        if self.timeout > 1:
+            done = True
+            self.timeout = 0 # reset timeout for next episode
+
+        state = self.get_state_from_x(self.last_x, cap_width, NUM_BINS)
 
         return state, done
+
+    def preprocess_slice(self, roi):
+        """
+            @brief Converts BGR to HSV and returns V channel average brightness.
+            @param slice_image: Image in BGR format
+            
+            @returns HSV image and average brightness of V channel
+        """
+        hsv_image = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
+        avg_brightness = np.mean(hsv_image[:, :, 2])
+        return hsv_image, avg_brightness
+    
+    def get_line_mask(self, hsv_slice, avg_v):
+        """
+            @brief Creates a binary mask for the line in the HSV slice. 
+
+            @param hsv_slice: Image in HSV format
+            @param avg_v: Average V channel (brightness) value 
+            @return Binary mask image
+        """
+        upper_v = int(np.clip(avg_v - self.DARKNESS_THRESHOLD, 0, 255))
+        lower_bound = np.array([0, 0, 0], dtype=np.uint8)
+        upper_bound = np.array([179, 255, upper_v], dtype=np.uint8)
+        return cv2.inRange(hsv_slice, lower_bound, upper_bound)
+
+    def find_cent_x_from_mask(self, mask):
+        """
+            @brief Finds the centroid x-coordinate from a binary mask.
+            @param mask: Binary image mask
+            @return: x-coordinate of the centroid or None if not found
+        """
+        moment = cv2.moments(mask)
+        # check if mask has white pixels to avoid division by zero
+        if moment["m00"] != 0:
+            cent_x = int(moment["m10"] / moment["m00"])
+            return cent_x
+        else:
+            return None
+    
+    def get_state_from_x(self, x, width, num_bins):
+        """
+            @brief Converts an x-coordinate into a state representation based on bins.
+            @param x: x-coordinate of the line centroid
+            @param width: width of the image
+            @param num_bins: number of bins to divide the image into
+            
+            @returns A one-hot encoded state array indicating which bin the line is in.
+        """
+        bin_size = width / num_bins
+        # rounds down to nearest int, so bin_index is in [0, num_bins-1]
+        bin_index = int(x // bin_size)
+        state = [0] * num_bins
+        if 0 <= bin_index < num_bins:
+            state[bin_index] = 1
+        return state
 
     def _seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
@@ -93,14 +164,14 @@ class Gazebo_Linefollow_Env(gazebo_env.GazeboEnv):
         vel_cmd = Twist()
 
         if action == 0:  # FORWARD
-            vel_cmd.linear.x = 0.4
+            vel_cmd.linear.x = self.FORWARD_SPEED
             vel_cmd.angular.z = 0.0
         elif action == 1:  # LEFT
             vel_cmd.linear.x = 0.0
-            vel_cmd.angular.z = 0.5
+            vel_cmd.angular.z = self.TURN_SPEED
         elif action == 2:  # RIGHT
             vel_cmd.linear.x = 0.0
-            vel_cmd.angular.z = -0.5
+            vel_cmd.angular.z = -self.TURN_SPEED
 
         self.vel_pub.publish(vel_cmd)
 
@@ -124,13 +195,13 @@ class Gazebo_Linefollow_Env(gazebo_env.GazeboEnv):
         # Set the rewards for your action
         if not done:
             if action == 0:  # FORWARD
-                reward = 4
+                reward = self.FORWARD_REWARD
             elif action == 1:  # LEFT
-                reward = 2
+                reward = self.TURN_REWARD
             else:
-                reward = 2  # RIGHT
+                reward = self.TURN_REWARD  # RIGHT
         else:
-            reward = -200
+            reward = self.PENALTY
 
         return state, reward, done, {}
 
