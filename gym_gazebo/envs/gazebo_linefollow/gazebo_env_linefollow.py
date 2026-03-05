@@ -127,9 +127,8 @@ class Gazebo_Linefollow_Env(gazebo_env.GazeboEnv):
                 action_names = {0: "FORWARD", 1: "LEFT", 2: "RIGHT", 3: "HARD LEFT", 4: "HARD RIGHT"}
                 command_text = action_names.get(action, "UNKNOWN")
                 
-                # Pick a color (Yellow for visibility)
-                cv2.putText(bgr8_image, f"CMD: {command_text}", (x_center, text_y + 30), 
-                            cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 255, 255), 3)
+                cv2.putText(bgr8_image, f"CMD: {command_text}", (10, 10 + text_h), 
+                            font, font_scale, (255, 0, 0), thickness)
 
         # Draw the Centroid (Red Dot) for comparison
         if current_x is not None:
