@@ -59,7 +59,7 @@ if __name__ == '__main__':
         observation = env.reset()
         state = ','.join(map(str, observation))
 
-        render() #defined above, not env.render()
+        # render() #defined above, not env.render()
 
         i = -1
         while True:
