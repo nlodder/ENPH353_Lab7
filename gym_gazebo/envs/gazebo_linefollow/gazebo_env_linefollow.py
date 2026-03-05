@@ -44,10 +44,10 @@ class Gazebo_Linefollow_Env(gazebo_env.GazeboEnv):
         self.SLICE_HEIGHT = 40
         self.DARKNESS_THRESHOLD = 20
         self.FORWARD_SPEED = 0.4 # m/s
-        self.TURN_SPEED = 0.5 # rad/s
+        self.TURN_SPEED = 0.6 # rad/s
 
         self.FORWARD_REWARD = 4
-        self.TURN_REWARD = 2
+        self.TURN_REWARD = 4
         self.PENALTY = -200
 
     def process_image(self, data):
@@ -62,7 +62,7 @@ class Gazebo_Linefollow_Env(gazebo_env.GazeboEnv):
         except CvBridgeError as e:
             print(e)
 
-        # cv2.imshow("raw", cv_image)
+        cv2.imshow("raw", bgr8_image)
 
         NUM_BINS = 3
         state = [0, 0, 0]
