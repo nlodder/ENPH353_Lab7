@@ -86,7 +86,7 @@ if __name__ == '__main__':
         print("===== Completed episode {}".format(x))
 
         if highest_reward < cumulated_reward:
-                highest_reward = cumulated_reward
+            highest_reward = cumulated_reward
 
         if (x > 0) and (x % 5 == 0):
             qlearn.saveQ("QValues")

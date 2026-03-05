@@ -213,10 +213,10 @@ class Gazebo_Linefollow_Env(gazebo_env.GazeboEnv):
             vel_cmd.linear.x = self.FORWARD_SPEED
             vel_cmd.angular.z = 0.0
         elif action == 1:  # LEFT
-            vel_cmd.linear.x = 0.25 * self.FORWARD_SPEED
+            vel_cmd.linear.x = 0.1 * self.FORWARD_SPEED
             vel_cmd.angular.z = self.TURN_SPEED
         elif action == 2:  # RIGHT
-            vel_cmd.linear.x = 0.25 * self.FORWARD_SPEED
+            vel_cmd.linear.x = 0.1 * self.FORWARD_SPEED
             vel_cmd.angular.z = -self.TURN_SPEED
         elif action == 3:  # HARD LEFT
             vel_cmd.linear.x = 0.0
