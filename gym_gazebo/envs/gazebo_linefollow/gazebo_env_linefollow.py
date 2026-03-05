@@ -41,7 +41,7 @@ class Gazebo_Linefollow_Env(gazebo_env.GazeboEnv):
         self.timeout = 0  # Used to keep track of images with no line detected
         
         self.last_x = None  # persistent state between callbacks where local variables die
-        self.SLICE_HEIGHT = 40
+        self.SLICE_HEIGHT = 80
         self.DARKNESS_THRESHOLD = 20
         self.FORWARD_SPEED = 0.4 # m/s
         self.TURN_SPEED = 0.6 # rad/s
@@ -65,8 +65,8 @@ class Gazebo_Linefollow_Env(gazebo_env.GazeboEnv):
             print(e)
 
 
-        NUM_BINS = 3
-        state = [0, 0, 0]
+        NUM_BINS = 5
+        state = [0, 0, 0, 0, 0] # default state with no line detected is all zeros
         done = False
 
         # extract region of interest (roi)
@@ -80,9 +80,6 @@ class Gazebo_Linefollow_Env(gazebo_env.GazeboEnv):
         # get line mask
         mask = self.get_line_mask(hsv_roi, avg_v)
         
-        cv2.imshow("Raw Image", bgr8_image)
-        cv2.imshow("Line Mask", mask)
-        cv2.waitKey(1)
 
         # update state
         current_x = self.find_cent_x_from_mask(mask)
@@ -90,11 +87,46 @@ class Gazebo_Linefollow_Env(gazebo_env.GazeboEnv):
             self.last_x = current_x
         else: # if line not detected, increment timeout
             self.timeout += 1
-        if self.timeout > 1:
+        if self.timeout > 4: # if line not detected for 5 consecutive frames, end episode
             done = True
             self.timeout = 0 # reset timeout for next episode
 
         state = self.get_state_from_x(self.last_x, cap_width, NUM_BINS)
+
+        bin_width = cap_width // NUM_BINS
+
+        # --- NEW: VISUALIZATION OVERLAY ---
+        for i, val in enumerate(state):
+            # Calculate the boundaries of this specific bin
+            x_left = i * bin_width
+            x_right = (i + 1) * bin_width
+            x_center = x_left + (bin_width // 2)
+            
+            # Draw Bin Separators (Vertical Lines)
+            cv2.line(bgr8_image, (x_left, 0), (x_left, cap_height), (255, 255, 255), 1)
+
+            # Green for 1 (Active), Red/Gray for 0 (Inactive)
+            color = (0, 255, 0) if val == 1 else (0, 0, 255)
+            
+            # Center the "0" or "1" text in the bin, slightly above the ROI slice
+            text = str(val)
+            font = cv2.FONT_HERSHEY_SIMPLEX
+            font_scale = 1.0
+            thickness = 2
+            
+            # Get text size to perfectly center it
+            (text_w, text_h), _ = cv2.getTextSize(text, font, font_scale, thickness)
+            text_x = x_center - (text_w // 2)
+            text_y = y_start - 20 # 20 pixels above the slice
+            
+            cv2.putText(bgr8_image, text, (text_x, text_y), font, font_scale, color, thickness)
+
+        # Draw the Centroid (Red Dot) for comparison
+        if current_x is not None:
+            cv2.circle(bgr8_image, (current_x, y_start + (self.SLICE_HEIGHT // 2)), 10, (0, 255, 255), -1)
+        
+        cv2.imshow("Line Follow View", bgr8_image)
+        cv2.waitKey(1)
 
         return state, done
 
@@ -147,7 +179,7 @@ class Gazebo_Linefollow_Env(gazebo_env.GazeboEnv):
         """
         bin_size = width / num_bins
         # rounds down to nearest int, so bin_index is in [0, num_bins-1]
-        bin_index = int(x // bin_size)
+        bin_index = min(int(x // bin_size), num_bins - 1)
         state = [0] * num_bins
         if 0 <= bin_index < num_bins:
             state[bin_index] = 1

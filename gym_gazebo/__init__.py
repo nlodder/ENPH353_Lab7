@@ -15,5 +15,5 @@ register(
 register(
 	id='Gazebo_linefollow-v0',
 	entry_point='gym_gazebo.envs.gazebo_linefollow:Gazebo_Linefollow_Env',
-	max_episode_steps=3000,
+	max_episode_steps=20000,
 )
