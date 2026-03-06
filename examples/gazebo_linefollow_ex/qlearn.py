@@ -5,11 +5,11 @@ import pickle
 class QLearn:
     def __init__(self, actions, epsilon, alpha, gamma):
         self.q = {}
-        self.epsilon = epsilon  # exploration constant
-        self.alpha = alpha      # discount constant
-        self.gamma = gamma      # discount factor
-        self.actions = actions  # list of possible actions
-        self.exploration = dict() # dictionary to track random vs highest Q action choices for debugging purposes
+        self.epsilon = epsilon      # exploration constant
+        self.alpha = alpha          # discount constant
+        self.gamma = gamma          # discount factor
+        self.actions = actions      # list of possible actions
+        self.exploration = dict()   # dictionary to track random vs highest Q action choices for debugging purposes
 
     def loadQ(self, filename):
         '''

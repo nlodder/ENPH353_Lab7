@@ -43,6 +43,9 @@ if __name__ == '__main__':
     last_time_steps = numpy.ndarray(0)
 
     # Setup qlearning
+    # NOTE: why are we using epsilon=0? Shouldn't we want some exploration?
+    # Maybe not, since the state space is so large that we won't see the same state twice,
+    # so exploration doesn't make sense?
     qlearn = qlearn.QLearn(actions=range(env.action_space.n),
                            alpha=0.2, gamma=0.8, epsilon=0)
 
@@ -98,12 +101,14 @@ if __name__ == '__main__':
             observation, reward, done, info = env.step(action)
             cumulated_reward += reward
 
+            # if our cumultated reward is higher then our current highest, update highest
             if highest_reward < cumulated_reward:
                 highest_reward = cumulated_reward
 
             nextState = ''.join(map(str, observation))
 
             qlearn.learn(state, action, reward, nextState)
+            # get angle and angular velocity to print out reward for each action, just for debugging
             angle = observation[2]
             angular_v = observation[3]
             if (state, 0) in qlearn.q:
@@ -114,7 +119,7 @@ if __name__ == '__main__':
                 reward1 = qlearn.q[(state, 1)]
             else:
                 reward1 = 1
-            #print("Angle: {}\nAngular: {}\nReward for forward: {}.\nReward for backward: {}\n******".format(angle, angular_v, reward1, reward0))
+            print("Angle: {}\nAngular: {}\nReward for forward: {}.\nReward for backward: {}\n******".format(angle, angular_v, reward1, reward0))
 
             env._flush(force=True)
 
